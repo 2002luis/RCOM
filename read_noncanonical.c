@@ -66,8 +66,8 @@ int main(int argc, char *argv[])
 
     // Set input mode (non-canonical, no echo,...)
     newtio.c_lflag = 0;
-    newtio.c_cc[VTIME] = 0; // Inter-character timer unused
-    newtio.c_cc[VMIN] = 5;  // Blocking read until 5 chars received
+    newtio.c_cc[VTIME] = 30; // Inter-character timer unused
+    newtio.c_cc[VMIN] = 1;  // Blocking read until 1 chars received
 
     // VTIME e VMIN should be changed in order to protect with a
     // timeout the reception of the following character(s)
@@ -91,6 +91,47 @@ int main(int argc, char *argv[])
     // Loop for input
     unsigned char buf[BUF_SIZE + 1] = {0}; // +1: Save space for the final '\0' char
 
+    int state = 0;
+    int other_a, other_c;
+
+    while(state != 5){
+    
+    // Read bytes sent by other computer as answer
+        int bytes = read(fd, buf, 1);
+        buf[1] = '\0';
+        if(state != 4 && buf[0] == 0x7e) state = 1;
+        else if(state == 4 && buf[0] == 0x7e) state = 5;
+        else if(state == 1){
+        if(buf[0]==0x03){
+            other_a = 0x03;
+            state = 2;
+        }
+        else state = 0;
+        }
+        else if(state == 2){
+        if(buf[0]==0x03){
+            other_c = 0x03;
+            state = 3;
+        }
+        else state = 0;
+        }
+        else if (state == 3){
+        if(buf[0] == (other_a^other_c)){
+            state = 4;
+        }
+        else state = 0;
+        }
+    }
+    
+    buf[0]=0x7e;
+    buf[1]=0x01;
+    buf[2]=0x07;
+    buf[3]=0x01 ^ 0x07;
+    buf[4]=0x7e;
+   
+    int bytes = write(fd, buf, BUF_SIZE);
+    
+    /*
     while (STOP == FALSE)
     {
         // Returns after 5 chars have been input
@@ -116,6 +157,7 @@ int main(int argc, char *argv[])
         bytes = write(fd, buf, BUF_SIZE);
         printf("%d bytes written\n", bytes);
     }
+    */
 
     // The while() cycle should be changed in order to respect the specifications
     // of the protocol indicated in the Lab guide

@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <termios.h>
 #include <unistd.h>
+#include <signal.h>
 
 // Baudrate settings are defined in <asm/termbits.h>, which is
 // included by <termios.h>
@@ -22,6 +23,14 @@
 #define BUF_SIZE 5
 
 volatile int STOP = FALSE;
+
+int alarmActive = FALSE;
+int alarmCount = 0;
+
+void alarmHandler(){
+    alarmActive = FALSE;
+    alarmCount++;
+}
 
 int main(int argc, char *argv[])
 {
@@ -67,8 +76,8 @@ int main(int argc, char *argv[])
 
     // Set input mode (non-canonical, no echo,...)
     newtio.c_lflag = 0;
-    newtio.c_cc[VTIME] = 0; // Inter-character timer unused
-    newtio.c_cc[VMIN] = 5;  // Blocking read until 5 chars received
+    newtio.c_cc[VTIME] = 30; // Inter-character timer unused
+    newtio.c_cc[VMIN] = 1;  // Blocking read until 1 chars received
 
     // VTIME e VMIN should be changed in order to protect with a
     // timeout the reception of the following character(s)
@@ -90,7 +99,7 @@ int main(int argc, char *argv[])
     printf("New termios structure set\n");
 
     // Create string to send
-    unsigned char buf[BUF_SIZE] = {0};
+    unsigned char buf[5] = {0};
 
    
    
@@ -108,25 +117,60 @@ int main(int argc, char *argv[])
     // In non-canonical mode, '\n' does not end the writing.
     // Test this condition by placing a '\n' in the middle of the buffer.
     // The whole buffer must be sent even with the '\n'.
+    (void)signal(SIGALRM, alarmHandler);
 
-    int bytes = write(fd, buf, BUF_SIZE);
-    printf("%d bytes written\n", bytes);
+
+    
 
     // Wait until all bytes have been written to the serial port
     sleep(1);
 
-      // Read bytes sent by other computer as answer
-      bytes = read(fd, buf, BUF_SIZE);
-      buf[bytes] = '\0';
-      if(buf[1]^buf[2] != buf[3]) printf("Bruh\n");
-      else {
-            printf("0x%02X\n",buf[0]);
-            printf("0x%02X\n",buf[1]);
-            printf("0x%02X\n",buf[2]);
-            printf("0x%02X\n",buf[3]);
-            printf("0x%02X\n",buf[4]);
-      }
+    int state = 0; // 0 = start, 1 = flag_RCV, 2 = a_RCV, 3 = c_RCV, 4 = BCC, 5 = stop
 
+    int other_a, other_c;
+
+    int bytes;
+
+    while(state!=5 && alarmCount < 4){
+        
+        printf("%d bytes written\n", bytes);
+        if(alarmActive){
+            alarmActive = TRUE;
+            alarm(3);
+            state = 0;
+            bytes = write(fd, buf, 5);
+        }
+        // Read bytes sent by other computer as answer
+        bytes = read(fd, buf, 1);
+        buf[1] = '\0';
+        if(state != 4 && buf[0] == 0x7e) state = 1;
+        else if(state == 4 && buf[0] == 0x7e) state = 5;
+        else if(state == 1){
+            if(buf[0]==0x01){
+                other_a = 0x01;
+                state = 2;
+            }
+            else state = 0;
+        }
+        else if(state == 2){
+            if(buf[0]==0x07){
+                other_c = 0x07;
+                state = 3;
+            }
+            else state = 0;
+        }
+        else if (state == 3){
+            if(buf[0] == (other_a^other_c)){
+                state = 4;
+            }
+            else state = 0;
+        }
+        
+
+
+    }
+
+    alarm(0);
 
     // Restore the old port settings
     if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
