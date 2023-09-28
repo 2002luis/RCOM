@@ -30,6 +30,8 @@ int alarmCount = 0;
 void alarmHandler(){
     alarmActive = FALSE;
     alarmCount++;
+
+    printf("Alarm %d\n", alarmCount);
 }
 
 int main(int argc, char *argv[])
@@ -99,15 +101,15 @@ int main(int argc, char *argv[])
     printf("New termios structure set\n");
 
     // Create string to send
-    unsigned char buf[5] = {0};
+    unsigned char wbuf[5] = {0}, buf[2] = {0};
 
    
    
-    buf[0] = 0x7e;
-    buf[1] = 0x03;
-    buf[2] = 0x03;
-    buf[3] = buf[1]^buf[2];
-    buf[4] = 0x7e;
+    wbuf[0] = 0x7e;
+    wbuf[1] = 0x03;
+    wbuf[2] = 0x03;
+    wbuf[3] = wbuf[1]^wbuf[2];
+    wbuf[4] = 0x7e;
    
     /*for (int i = 5; i < BUF_SIZE; i++)
     {
@@ -122,8 +124,6 @@ int main(int argc, char *argv[])
 
     
 
-    // Wait until all bytes have been written to the serial port
-    sleep(1);
 
     int state = 0; // 0 = start, 1 = flag_RCV, 2 = a_RCV, 3 = c_RCV, 4 = BCC, 5 = stop
 
@@ -131,18 +131,23 @@ int main(int argc, char *argv[])
 
     int bytes;
 
+
     while(state!=5 && alarmCount < 4){
         
-        printf("%d bytes written\n", bytes);
-        if(alarmActive){
+        
+        if(!alarmActive){
             alarmActive = TRUE;
-            alarm(3);
+            alarm(1);
             state = 0;
-            bytes = write(fd, buf, 5);
+            bytes = write(fd, wbuf, 5);
+            printf("%d bytes written\n", bytes);
         }
+
+
+        
         // Read bytes sent by other computer as answer
         bytes = read(fd, buf, 1);
-        buf[1] = '\0';
+        /*
         if(state != 4 && buf[0] == 0x7e) state = 1;
         else if(state == 4 && buf[0] == 0x7e) state = 5;
         else if(state == 1){
@@ -165,10 +170,12 @@ int main(int argc, char *argv[])
             }
             else state = 0;
         }
-        
+        */
 
 
     }
+
+    printf("State %d\t alarmCount %d\n", state, alarmCount);
 
     alarm(0);
 
