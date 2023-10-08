@@ -139,15 +139,13 @@ int main(int argc, char *argv[])
             alarmActive = TRUE;
             alarm(1);
             state = 0;
-            bytes = write(fd, wbuf, 5);
+            write(fd, wbuf, 5);
             printf("%d bytes written\n", bytes);
         }
-
-
         
         // Read bytes sent by other computer as answer
         bytes = read(fd, buf, 1);
-        /*
+        
         if(state != 4 && buf[0] == 0x7e) state = 1;
         else if(state == 4 && buf[0] == 0x7e) state = 5;
         else if(state == 1){
@@ -170,7 +168,7 @@ int main(int argc, char *argv[])
             }
             else state = 0;
         }
-        */
+        
 
 
     }

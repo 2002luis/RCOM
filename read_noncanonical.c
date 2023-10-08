@@ -98,6 +98,7 @@ int main(int argc, char *argv[])
     
     // Read bytes sent by other computer as answer
         int bytes = read(fd, buf, 1);
+        printf("%d\n", buf[0]);
         buf[1] = '\0';
         if(state != 4 && buf[0] == 0x7e) state = 1;
         else if(state == 4 && buf[0] == 0x7e) state = 5;
@@ -109,17 +110,17 @@ int main(int argc, char *argv[])
         else state = 0;
         }
         else if(state == 2){
-        if(buf[0]==0x03){
-            other_c = 0x03;
-            state = 3;
-        }
-        else state = 0;
+            if(buf[0]==0x03){
+                other_c = 0x03;
+                state = 3;
+            }
+            else state = 0;
         }
         else if (state == 3){
-        if(buf[0] == (other_a^other_c)){
-            state = 4;
-        }
-        else state = 0;
+            if(buf[0] == (other_a^other_c)){
+                state = 4;
+            }
+            else state = 0;
         }
     }
     
