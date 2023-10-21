@@ -11,7 +11,7 @@
 #include "link_layer.h"
 
 
-#define MAX_SIZE 1024
+#define MAX_SIZE 512
 
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename)
@@ -22,6 +22,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     connectionParameters.nRetransmissions = nTries;
     sprintf(connectionParameters.serialPort,"%s",serialPort);
     connectionParameters.timeout=timeout;
+    long int totalBytes = 0;
     if(strcmp(role,"tx")==0){
         connectionParameters.role=LlTx;
         if(llopen(connectionParameters)==-1){
@@ -29,6 +30,9 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         }
         int file = open(filename,O_RDONLY);
         if(file<0)exit(1);
+
+        
+
         unsigned char buf[MAX_SIZE];
         int writeRes = 0, bytesRead = 1;
         while(bytesRead>0){
@@ -50,6 +54,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                     printf("Send to link layer error\n");
                     exit(1);
                 }
+                else totalBytes += bytesRead;
             }
             sleep(1);
         }
@@ -61,8 +66,11 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         if(llopen(connectionParameters)==-1) exit(1);
         int file=open(filename,O_RDWR|O_CREAT,S_IWUSR|S_IRUSR|S_IRGRP|S_IROTH);
         if(file<0)exit(1);
-        int bytesRead = 0, writeRes = 0, totalBytes = 0;
-        unsigned char buf[MAX_SIZE];
+        int bytesRead = 0, writeRes = 0;
+        unsigned char buf[MAX_SIZE*2];
+        
+        int timesWritten = 0;
+
         while(bytesRead>=0){
             //printf("calling llread\n");
             bytesRead=llread(buf);
@@ -76,11 +84,11 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 if(buf[0]==1){
                     //printf("buf is %s",buf);
                     writeRes=write(file,buf+1,bytesRead-1);
-                    //printf("done writing %d bytes\n",writeRes);
                     if(writeRes<0){
                         //printf("\nError writing to file\n");
                         exit(1);
                     }
+                    timesWritten++;
                     totalBytes += writeRes;
                 }
                 else if(buf[0] == 0){
@@ -89,8 +97,9 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 }
             }
         }
-        printf("llclose in receiver called\n");
+        printf("wrote %d times\nllclose in receiver called\n",timesWritten);
         llclose(0);
         close(file);   
     }
+    printf("total bytes %ld\n",totalBytes);
 }

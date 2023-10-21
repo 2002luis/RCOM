@@ -17,7 +17,7 @@
 #define FALSE 0
 #define TRUE 1
 
-#define MAX_SIZE 1024
+#define MAX_SIZE 512
 
 #define FLAG 0x7e
 #define DISC 0x0b
@@ -66,7 +66,7 @@ int dataBcc(const unsigned char* buf, int bufsize){
 }
 
 int stuff(unsigned char* buf, int length){
-    for(int i = 4; i < length-2; i++){
+    for(int i = 4; i < length-1; i++){
         if(buf[i] == FLAG || buf[i] == 0x7d){
             for(int j = length; j > i; j--){
                 buf[j] = buf[j-1];
@@ -82,7 +82,7 @@ int stuff(unsigned char* buf, int length){
 }
 
 int destuff(unsigned char* buf, int length){
-    for(int i = 4; i < (length-3); i++){
+    for(int i = 4; i < (length-1); i++){
         if( buf[i] == 0x7d && ((buf[i+1] == (FLAG^0x20)) || (buf[i+1] == (0x7d^0x20))) ){
             if(buf[i+1] == (FLAG^0x20)){
                 buf[i] = FLAG;
@@ -263,7 +263,9 @@ int llwrite(const unsigned char *inbuf, int bufSize)
     buf[frameLength-2]=dataBcc(buf,frameLength);
 
     printf("antes de stuff: %s\n",buf);
+
     frameLength = stuff(buf,frameLength);
+
 
     int state = 0, res = 0, done = FALSE;
     unsigned char rec[MAX_SIZE];
@@ -521,6 +523,7 @@ int llread(unsigned char *packet)
         }
 
     }
+
     return n;
 }
 
