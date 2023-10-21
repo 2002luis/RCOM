@@ -64,30 +64,30 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         int bytesRead = 0, writeRes = 0, totalBytes = 0;
         unsigned char buf[MAX_SIZE];
         while(bytesRead>=0){
-            printf("calling llread\n");
+            //printf("calling llread\n");
             bytesRead=llread(buf);
-            printf("\nbytes read: %d\n",bytesRead);
+            //printf("\nbytes read: %d\n",bytesRead);
             if(bytesRead<0){
-                printf("\nReceiving from link layer epic fail\n");
+                //printf("\nReceiving from link layer epic fail\n");
                 exit(1);
             }
             else if(bytesRead>0){
-                printf("application layer epically received %d bytes\nbyte 0 is %d\n", bytesRead, buf[0]);
+                //printf("application layer epically received %d bytes\nbyte 0 is %d\n", bytesRead, buf[0]);
                 if(buf[0]==1){
+                    //printf("buf is %s",buf);
                     writeRes=write(file,buf+1,bytesRead-1);
-                    printf("done writing %d bytes\n",writeRes);
+                    //printf("done writing %d bytes\n",writeRes);
                     if(writeRes<0){
-                        printf("\nError writing to file\n");
+                        //printf("\nError writing to file\n");
                         exit(1);
                     }
                     totalBytes += writeRes;
                 }
                 else if(buf[0] == 0){
-                    printf("done\n");
+                    //printf("done\n");
                     break;
                 }
             }
-            
         }
         printf("llclose in receiver called\n");
         llclose(0);

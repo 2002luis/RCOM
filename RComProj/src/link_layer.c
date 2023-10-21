@@ -19,6 +19,21 @@
 
 #define MAX_SIZE 1024
 
+#define FLAG 0x7e
+#define DISC 0x0b
+#define RR0 0x05
+#define RR1 0x85
+#define REJ0 0x01
+#define REJ1 0x81
+#define UA 0x07
+#define SET 0x03
+
+#define A_R 0x03
+#define A_T 0x01
+#define C_0 0x00
+#define C_1 0x40
+
+
 int nS = 0, nR = 0, timeoutLim = 0, fd, role = 0;
 struct termios oldtio;
 
@@ -32,11 +47,11 @@ void myStrCpy(unsigned char* dest, const unsigned char* orig){
 
 int wFlag(int *fd, unsigned char A, unsigned char C){
     unsigned char buf[5];
-    buf[0] = 0x7e;
+    buf[0] = FLAG;
     buf[1] = A;
     buf[2] = C;
     buf[3] = A^C;
-    buf[4] = 0x7e;
+    buf[4] = FLAG;
 
     int res = write(*fd,buf,5);
     return res!=5;
@@ -52,7 +67,7 @@ int dataBcc(const unsigned char* buf, int bufsize){
 
 int stuff(unsigned char* buf, int length){
     for(int i = 4; i < length-2; i++){
-        if(buf[i] == 0x7e || buf[i] == 0x7d){
+        if(buf[i] == FLAG || buf[i] == 0x7d){
             for(int j = length; j > i; j--){
                 buf[j] = buf[j-1];
             }
@@ -68,10 +83,11 @@ int stuff(unsigned char* buf, int length){
 
 int destuff(unsigned char* buf, int length){
     for(int i = 4; i < (length-3); i++){
-        if( buf[i] == 0x7d && ((buf[i+1] == (0x7e^0x20)) || (buf[i+1] == (0x7d^0x20))) ){
-            if(buf[i+1] == (0x7e^0x20)){
-                buf[i] = 0x7e;
-            } else{
+        if( buf[i] == 0x7d && ((buf[i+1] == (FLAG^0x20)) || (buf[i+1] == (0x7d^0x20))) ){
+            if(buf[i+1] == (FLAG^0x20)){
+                buf[i] = FLAG;
+            }
+            else{
                 buf[i] = 0x7d;
             }
             for(int j = i+1; j < length; j++){
@@ -132,7 +148,7 @@ int llopen(LinkLayer connectionParameters)
         exit(-1);
     }
 
-    printf("New termios structure set\n");
+    //printf("New termios structure set\n");
 
     // Loop for input
     unsigned char buf[5] = {0};
@@ -145,28 +161,28 @@ int llopen(LinkLayer connectionParameters)
     switch(connectionParameters.role){
         case(LlTx):
         role = 1; //transmitter
-        if(wFlag(&fd,0x03,0x03)) return -1;
+        if(wFlag(&fd,A_T,SET)) return -1;
         while(state!=5){
             int res = read(fd,buf,1);
             if(res==0){ //timeout
                 tries--;
                 state = 0;
                 if(tries<=0) return -1;
-                wFlag(&fd,0x03,0x03);
+                wFlag(&fd,A_T,SET);
             }
 
-            if(state != 4 && buf[0] == 0x7e) state = 1;
-            else if(state == 4 && buf[0] == 0x7e) state = 5;
+            if(state != 4 && buf[0] == FLAG) state = 1;
+            else if(state == 4 && buf[0] == FLAG) state = 5;
             else if(state == 1){
-                if(buf[0]==0x01){
-                    other_a = 0x01;
+                if(buf[0]==A_T){
+                    other_a = buf[0];
                     state = 2;
                 }
                 else state = 0;
             }
             else if(state == 2){
-                if(buf[0]==0x07){
-                    other_c = 0x07;
+                if(buf[0]==UA){
+                    other_c = buf[0];
                     state = 3;
                 }
                 else state = 0;
@@ -190,18 +206,18 @@ int llopen(LinkLayer connectionParameters)
                 tries--;
                 if(tries<=0) return -1;
             }
-            if(state != 4 && buf[0] == 0x7e) state = 1;
-            else if(state == 4 && buf[0] == 0x7e) state = 5;
+            if(state != 4 && buf[0] == FLAG) state = 1;
+            else if(state == 4 && buf[0] == FLAG) state = 5;
             else if(state == 1){
-            if(buf[0]==0x03){
-                other_a = 0x03;
+            if(buf[0]==A_T){
+                other_a = buf[0];
                 state = 2;
             }
             else state = 0;
             }
             else if(state == 2){
-                if(buf[0]==0x03){
-                    other_c = 0x03;
+                if(buf[0]==SET){
+                    other_c = SET;
                     state = 3;
                 }
                 else state = 0;
@@ -213,7 +229,7 @@ int llopen(LinkLayer connectionParameters)
                 else state = 0;
             }
         }
-        wFlag(&fd,0x01,0x07);
+        wFlag(&fd,A_T,UA);
         break;
     }
 
@@ -229,23 +245,24 @@ int llwrite(const unsigned char *inbuf, int bufSize)
     if(inbuf == NULL || bufSize == 0){
         return 0;
     }
-    unsigned char buf[MAX_SIZE];
+    unsigned char buf[MAX_SIZE * 2];
     unsigned char inBuf[MAX_SIZE];
     myStrCpy(inBuf,inbuf); //inbuf is const and can't be changed
     int frameLength = 6;
 
-    buf[0] = 0x7e;
-    buf[1] = 0x01;
-    if(nS == 0) buf[2] = 0x00;
-    else buf[2] = 0x02;
+    buf[0] = FLAG;
+    buf[1] = A_T;
+    if(nS == 0) buf[2] = C_0;
+    else buf[2] = C_1;
     buf[3]=buf[1]^buf[2];
     for(int i = 0; i < bufSize; i++){
         buf[4+i]=inBuf[i]; //append input buffer to buf
         frameLength++;
     }
-    buf[frameLength-1]=0x7e;
+    buf[frameLength-1]=FLAG;
     buf[frameLength-2]=dataBcc(buf,frameLength);
 
+    printf("antes de stuff: %s\n",buf);
     frameLength = stuff(buf,frameLength);
 
     int state = 0, res = 0, done = FALSE;
@@ -256,7 +273,7 @@ int llwrite(const unsigned char *inbuf, int bufSize)
 
 
         if(write(fd,buf,frameLength)!=frameLength) return -1;
-        printf("\nsou mesmo epico e mandei estas coisas: %s\n",buf);
+        //printf("\nsou mesmo epico e mandei estas coisas: %s\n",buf);
         state = 0;
         res = 0;
 
@@ -270,43 +287,43 @@ int llwrite(const unsigned char *inbuf, int bufSize)
                     return -1;
                 }
                 if(write(fd,buf,frameLength)!=frameLength) return -1;
-                printf("\na outra funcao e um cringe e deu timeout portanto mandei outra vez\n");
+                //printf("\na outra funcao e um cringe e deu timeout portanto mandei outra vez\n");
             }
 
 
             if(state==0){
-                if(buf[0]==0x7e){
+                if(buf[0]==FLAG){
+                    rec[state]=buf[0];
                     state = 1;
-                    rec[0]=buf[0];
                 }
             }
             else if(state==1){
-                if(buf[0]==0x01){
+                if(buf[0]==A_T){
+                    rec[state]=buf[0];
                     state = 2;
-                    rec[1]=buf[0];
                 }
-                else if(buf[0] != 0x7e) state = 0;
+                else if(buf[0] != FLAG) state = 0;
             }
             else if(state==2){
-                if(buf[0] == 0x05 || buf[0] == 0x25 || buf[0] == 0x01 || buf[0] == 0x21){
+                if(buf[0] == RR0 || buf[0] == RR1 || buf[0] == REJ0 || buf[0] == REJ1){
+                    rec[state]=buf[0];
                     state = 3;
-                    rec[2] = buf[0];
                 }
-                else if(buf[0] == 0x7e) state = 1;
+                else if(buf[0] == FLAG) state = 1;
                 else state = 0;
             }
             else if(state==3){
                 if(buf[0] == (rec[1]^rec[2])){
+                    rec[state]=buf[0];
                     state = 4;
-                    rec[3] = buf[0];
                 }
-                else if(buf[0] == 0x7e) state = 1;
+                else if(buf[0] == FLAG) state = 1;
                 else state = 0;
             }
             else if(state==4){
-                if(buf[0]==0x7e){
+                if(buf[0]==FLAG){
+                    rec[state]=buf[0];
                     state = 5;
-                    rec[4]=buf[0];
                 }
                 else state = 0;
             }
@@ -318,11 +335,11 @@ int llwrite(const unsigned char *inbuf, int bufSize)
 
 
         if(nS==0){
-            if(rec[2]==0x21){
+            if(rec[2]==RR1){
                 done = TRUE;
                 nS = 1;
             }
-            else if(rec[2]==0x05){
+            else if(rec[2]==REJ0){
                 state = 0;
                 times = timeoutLim;
             }
@@ -332,11 +349,11 @@ int llwrite(const unsigned char *inbuf, int bufSize)
             }
         }
         else if(nS==1){
-            if(rec[2]==0x01){
+            if(rec[2]==RR0){
                 done = TRUE;
                 nS = 0;
             }
-            else if(rec[2]==0x25){
+            else if(rec[2]==REJ1){
                 state = 0;
                 times = timeoutLim;
             }
@@ -361,12 +378,12 @@ int llread(unsigned char *packet)
 {
     if(packet==NULL) return -1;
     int frameLength = 4, n = 0, state = 0, res = 0, done = FALSE, times = timeoutLim;
-    unsigned char rec[MAX_SIZE], buf[5];
+    unsigned char rec[MAX_SIZE*2], buf[5];
 
     while(!done){
         state = 0;
         res = 0;
-        printf("vou entrar na state machine de ler xis de\n");
+        //printf("vou entrar na state machine de ler xis de\n");
         while(state != 6){
             res = read(fd,buf,1);
             if(res==0){
@@ -376,30 +393,32 @@ int llread(unsigned char *packet)
                     perror("TIMEOUT LLREAD");
                     return -1;
                 }
-                printf("read time out\n");
+                //printf("read time out\n");
             }
-            //else printf("byte ");
+            //else //printf("byte ");
             //ele está a receber os bytes mas n está a sair desta state machine acho eu
 
             if(state==0){
-                if(buf[0]==0x7e){
+                if(buf[0]==FLAG){
+                    rec[state]=buf[0];
                     state = 1;
-                    rec[0]=buf[0];
+                    //printf("flag\n");
                 }
             }
             else if(state==1){
-                if(buf[0]==0x01){
+                if(buf[0]==A_T){
+                    rec[state]=buf[0];
                     state = 2;
-                    rec[1]=buf[0];
                 }
-                else if(buf[0] != 0x7e) state = 0;
+                else if(buf[0] != FLAG) state = 0;
             }
             else if(state==2){
-                if(buf[0] == 0x00 || buf[0] == 0x01 || buf[0] == 0x03 || buf[0] ==0x07 || buf[0] ==0x0b){
+                if(buf[0] == C_0 || buf[0] == C_1 || buf[0] == SET || buf[0] == UA || buf[0] == DISC){
+                    rec[state]=buf[0];
                     state = 3;
-                    rec[2] = buf[0];
+                    //printf("c\n");
                 }
-                else if(buf[0] == 0x7e){
+                else if(buf[0] == FLAG){
                     state = 1;
                 } else{
                     state = 0;
@@ -407,15 +426,15 @@ int llread(unsigned char *packet)
             }
             else if(state==3){
                 if(buf[0]==(rec[1]^rec[2])){
-                    if(rec[2] == 0x03 || rec[2] == 0x07 || rec[2] == 0x0b){
+                    rec[state]=buf[0];
+                    if(rec[2] == SET || rec[2] == UA || rec[2] == DISC){
                         state = 5; //BCC_OTHER
                     } else{
-                        state = 4; //BCC1
+                        state = 4; //BCC
                     }
                     frameLength = 4;
-                    rec[3] = buf[0];
                 }
-                else if(buf[0] == 0x7e){
+                else if(buf[0] == FLAG){
                     state = 1;
                 } else{
                     state = 0;
@@ -424,12 +443,13 @@ int llread(unsigned char *packet)
             else if(state==4){
                 rec[frameLength]=buf[0];
                 frameLength++;
-                if(buf[0]==0x7e){
+                if(buf[0]==FLAG){
+                    //printf("acabei de ler vou para state 6\n");
                     state = 6;
                 }
             }
             else if(state==5){
-                if(buf[0]==0x7e){
+                if(buf[0]==FLAG){
                     state = 6;
                     rec[frameLength] = buf[0];
                     frameLength++;
@@ -441,55 +461,61 @@ int llread(unsigned char *packet)
                 state = 0;
             }
         }
-        printf("\nsai da state machine de ler, a informacao apos o coiso e: %s\n",rec);
+        //printf("\nsai da state machine de ler, a informacao apos o coiso e: %s\n",rec);
 
-        if(rec[2]==0x03 || rec[2] == 0x07 || rec[2]==0x0b){
+        if(rec[2] == SET || rec[2] == UA || rec[2] == DISC){
 
-            if(rec[2]==0x03){
-                if(wFlag(&fd,0x01,0x07)!=0) return -1;
+            if(rec[2] == SET){
+                if(wFlag(&fd,A_T,UA)!=0) return -1;
             }
-            if(rec[2]==0x0b){
+            if(rec[2] == DISC){
                 n = -1;
-                printf("li o n=-1 wtf?\n");
             }
             done = TRUE;
             
         }
         else{
             frameLength = destuff(rec,frameLength);
+            printf("depois do destuff: %s\n", rec);
             unsigned char bcc2 = dataBcc(rec,frameLength);
 
-            printf("\n dei destuff? sou mesmo fixe\n");
+            //printf("\n dei destuff? sou mesmo fixe\n");
 
             if(bcc2 == rec[frameLength-2]){
-                printf("uau o bcc2 estava bem que epico\n");
-                if(rec[2]==0x00 && nR == 0){
-                    wFlag(&fd,0x01,0x21);
+                //printf("uau o bcc2 estava bem que epico\n");
+                if(rec[2]==C_0 && nR == 0){
+                    wFlag(&fd,A_T,RR1);
                     nR=1;
-                    for(int i = 0; i < frameLength-6; i++) {packet[i]=rec[i+4];n++;}
+                    for(int i = 0; i < frameLength-6; i++) {
+                        packet[i]=rec[i+4];
+                        n++;
+                    }
                     done = TRUE;
                 }
-                else if(rec[2]==0x02 && nR==1){
-                    wFlag(&fd,0x01,0x01);
+                else if(rec[2]==C_1 && nR==1){
+                    wFlag(&fd,A_T,RR0);
                     nR=0;
-                    for(int i = 0; i < frameLength-6; i++) {packet[i] = rec[i+4];n++;}
+                    for(int i = 0; i < frameLength-6; i++) {
+                        packet[i] = rec[i+4];
+                        n++;
+                    }
                     done = TRUE;
                 }
-                else if(rec[2] == 0x00 && nR == 1) wFlag(&fd,0x01,0x21);
-                else if(rec[2] == 0x01 && nR == 0) wFlag(&fd,0x01,0x01);
+                else if(rec[2] == C_0 && nR == 1) wFlag(&fd,A_T,RR1);
+                else if(rec[2] == C_1 && nR == 0) wFlag(&fd,A_T,RR0);
                 else {
                     perror("BCC2 ERROR LLREAD");
                     return -1;
                 }
-                printf("packet momento é %s\n",packet);
+                //printf("packet momento é %s\n",packet);
                 n = frameLength-6;
             }
             else{
-                printf("o bcc2 estava mal que cringe\n");
-                if(rec[2]==0x00 && nR==0) wFlag(&fd,0x01,0x05);
-                else if(rec[2]==0x02 && nR==1) wFlag(&fd,0x01,0x25);
-                else if(rec[2]==0x00 && nR==1) wFlag(&fd,0x01,0x21);
-                else if(rec[2]==0x02 && nR==0) wFlag(&fd,0x01,0x01);
+                //printf("o bcc2 estava mal que cringe\n");
+                if(rec[2]==C_0 && nR==0) wFlag(&fd,A_T,REJ0);
+                else if(rec[2]==C_1 && nR==1) wFlag(&fd,A_T,REJ1);
+                else if(rec[2]==C_0 && nR==1) wFlag(&fd,A_T,RR1);
+                else if(rec[2]==C_1 && nR==0) wFlag(&fd,A_T,RR0);
                 else return -1;
             }
         }
@@ -505,9 +531,9 @@ int llclose(int showStatistics)
 {
     int state = 0, res = 0, times = timeoutLim;
     unsigned char rec[MAX_SIZE], buf[5];
-    printf("\nmfw entrei no llclose\n");
+    //printf("\nmfw entrei no llclose\n");
     if(role==1) {
-        if(wFlag(&fd,0x01,0x0b)) return -1;
+        if(wFlag(&fd,A_T,DISC)) return -1;
         while(state!=5){
             res = read(fd,buf,1);
             if(res==0){//timeout
@@ -517,28 +543,28 @@ int llclose(int showStatistics)
                     perror("TIMEOUT LLCLOSE");
                     return -1;
                 }
-                if(wFlag(&fd,0x01,0x0b) != 0) return -1;
+                if(wFlag(&fd,A_T,DISC) != 0) return -1;
             }
 
             if(state==0){
-                if(buf[0]==0x7e){
+                if(buf[0]==FLAG){
                     state=1;
                     rec[0]=buf[0];
                 }
             }
             else if(state==1){
-                if(buf[0]==0x03){
+                if(buf[0]==A_R){
                     state = 2;
                     rec[1]=buf[0];
                 }
-                else if(buf[0]!=0x7e) state = 0;
+                else if(buf[0]!=FLAG) state = 0;
             }
             else if(state==2){
-                if(buf[0]==0x0b){
+                if(buf[0]==DISC){
                     state = 3;
                     rec[2]=buf[0];
                 }
-                else if(buf[0] == 0x7e) state = 1;
+                else if(buf[0] == FLAG) state = 1;
                 else state = 0;
             }
             else if(state==3){
@@ -546,15 +572,15 @@ int llclose(int showStatistics)
                     rec[3] = buf[0];
                     state = 4;
                 }
-                else if(buf[0] == 0x7e) state = 1;
+                else if(buf[0] == FLAG) state = 1;
                 else state = 0;
             }
             else if(state==4){
-                if(buf[0]==0x7e){
+                if(buf[0]==FLAG){
                     state = 5;
                     rec[4] = buf[0];
                 }
-                else if(buf[0] == 0x7e) state = 1;
+                else if(buf[0] == FLAG) state = 1;
                 else state = 0;
             }
             else {
@@ -562,7 +588,7 @@ int llclose(int showStatistics)
                 state = 0;
             }
         }
-        if(wFlag(&fd,0x03,0x07));
+        if(wFlag(&fd,A_R,UA));
     }
     else if(role == -1){
         while(state != 5){
@@ -577,22 +603,22 @@ int llclose(int showStatistics)
 
 
             if(state == 0){
-                if(buf[0] == 0x7e) state = 1;
+                if(buf[0] == FLAG) state = 1;
                 rec[0] = buf[0];
             }
             else if(state == 1){
-                if(buf[0] == 0x01){
+                if(buf[0] == A_T){
                     state = 2;
                     rec[1] = buf[0];
                 }
-                else if(buf[0] != 0x7e) state = 0;
+                else if(buf[0] != FLAG) state = 0;
             }
             else if(state == 2){
-                if(buf[0] == 0x0b){
+                if(buf[0] == DISC){
                     rec[2] = buf[0];
                     state = 3;
                 }
-                else if(buf[0] == 0x7e) state = 1;
+                else if(buf[0] == FLAG) state = 1;
                 else state = 0;
             }
             else if(state == 3){
@@ -600,11 +626,11 @@ int llclose(int showStatistics)
                     rec[3] = buf[0];
                     state = 4;
                 }
-                else if(buf[0] == 0x7e) state = 1;
+                else if(buf[0] == FLAG) state = 1;
                 else state = 0;
             }
             else if(state == 4){
-                if(buf[0] == 0x7e){
+                if(buf[0] == FLAG){
                     rec[4] = buf[0];
                     state = 5;
                 }
@@ -615,7 +641,7 @@ int llclose(int showStatistics)
                 state = 0;
             }
         }
-        if(wFlag(&fd,0x03,0x0b)) return -1;
+        if(wFlag(&fd,A_R,DISC)) return -1;
         state = 0;
         res = 0;
         times = timeoutLim;
@@ -627,49 +653,49 @@ int llclose(int showStatistics)
                     perror("TIMEOUT");
                     return -1;
                 }
-                if(wFlag(&fd,0x03,0x0b) != 0) return -1;
+                if(wFlag(&fd,A_R,DISC) != 0) return -1;
             }
 
             if(state == 0){
-                if(buf[0] == 0x7e) state = 1;
-                rec[0] = 0x7e;
+                if(buf[0] == FLAG) state = 1;
+                rec[0] = FLAG;
             }
             else if(state == 1){
-                if(buf[0] == 0x03){
+                if(buf[0] == A_R){
                     state = 2;
                     rec[1] = buf[0];
                 }
-                else if(buf[0] != 0x7e) state = 0;
+                else if(buf[0] != FLAG) state = 0;
             }
             else if(state == 2){
-                if(buf[0] == 0x07 || buf[0] == 0x0b){
+                if(buf[0] == UA || buf[0] == DISC){
                     rec[2] = buf[0];
                     state = 3;
                 }
-                else if(buf[0] == 0x7e) state = 1;
+                else if(buf[0] == FLAG) state = 1;
                 else state = 0;
             }
             else if(state == 3){
                 if(buf[0] == (rec[1]^rec[2])){
                     rec[3] = buf[0];
-                    if(rec[2] == 0x0b) state = 5;
+                    if(rec[2] == DISC) state = 5;
                     else state = 4;
                 }
-                else if(buf[0] == 0x7e) state = 1;
+                else if(buf[0] == FLAG) state = 1;
                 else state = 0;
             }
             else if(state == 4){
-                if(buf[0] == 0x7e){
+                if(buf[0] == FLAG){
                     rec[4] = buf[0];
                     state = 6;
                 }
                 else state = 0;
             }
             else if(state == 5){
-                if(buf[0] == 0x7e){
+                if(buf[0] == FLAG){
                     rec[4] = buf[0];
                     state = 0;
-                    if(wFlag(&fd,0x03,0x0b) != 0) return -1;
+                    if(wFlag(&fd,A_R,DISC) != 0) return -1;
                 }
                 else state = 0;
             }
