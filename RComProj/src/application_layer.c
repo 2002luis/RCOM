@@ -37,6 +37,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         int writeRes = 0, bytesRead = 1;
         while(bytesRead>0){
             bytesRead = read(file,buf+1,MAX_SIZE-1);
+            for(int i = 1; i < bytesRead; i++) printf("%c",buf[i]);
+            printf("\n");
             if(bytesRead<0){
                 printf("Error reading bytes\n");
                 break;
@@ -74,6 +76,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         while(bytesRead>=0){
             //printf("calling llread\n");
             bytesRead=llread(buf);
+            for(int i = 1; i < bytesRead; i++) printf("%c",buf[i]);
+            printf("\n");
             //printf("\nbytes read: %d\n",bytesRead);
             if(bytesRead<0){
                 //printf("\nReceiving from link layer epic fail\n");

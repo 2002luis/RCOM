@@ -37,9 +37,9 @@
 int nS = 0, nR = 0, timeoutLim = 0, fd, role = 0;
 struct termios oldtio;
 
-void myStrCpy(unsigned char* dest, const unsigned char* orig){
+void myStrCpy(unsigned char* dest, const unsigned char* orig, int size){
     int i;
-    for(i = 0; orig[i]!='\0';i++){
+    for(i = 0; i<size;i++){
         dest[i]=orig[i];
     }
     dest[i]='\0';
@@ -246,8 +246,8 @@ int llwrite(const unsigned char *inbuf, int bufSize)
         return 0;
     }
     unsigned char buf[MAX_SIZE * 2];
-    unsigned char inBuf[MAX_SIZE];
-    myStrCpy(inBuf,inbuf); //inbuf is const and can't be changed
+    unsigned char inBuf[MAX_SIZE * 2];
+    myStrCpy(inBuf,inbuf,bufSize); //inbuf is const and can't be changed
     int frameLength = 6;
 
     buf[0] = FLAG;
@@ -262,7 +262,9 @@ int llwrite(const unsigned char *inbuf, int bufSize)
     buf[frameLength-1]=FLAG;
     buf[frameLength-2]=dataBcc(buf,frameLength);
 
-    printf("antes de stuff: %s\n",buf);
+    printf("antes de stuff: ");
+    for(int i = 1; i < bufSize; i++) printf("%c",inBuf[i]);
+    printf("\n");
 
     frameLength = stuff(buf,frameLength);
 
@@ -478,7 +480,11 @@ int llread(unsigned char *packet)
         }
         else{
             frameLength = destuff(rec,frameLength);
-            printf("depois do destuff: %s\n", rec);
+
+            printf("depois do destuff: ");
+            for(int i = 1; i < frameLength; i++) printf("%c",rec[i]);
+            printf("\n");
+
             unsigned char bcc2 = dataBcc(rec,frameLength);
 
             //printf("\n dei destuff? sou mesmo fixe\n");
