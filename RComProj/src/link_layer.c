@@ -37,7 +37,7 @@
 int nS = 0, nR = 0, timeoutLim = 0, fd, role = 0;
 struct termios oldtio;
 
-void myStrCpy(unsigned char* dest, const unsigned char* orig, int size){
+void myStrCpy(unsigned char* dest, const unsigned char* orig, int size){ //strcpy but with defined size and our types
     int i;
     for(i = 0; i<size;i++){
         dest[i]=orig[i];
@@ -45,6 +45,8 @@ void myStrCpy(unsigned char* dest, const unsigned char* orig, int size){
     dest[i]='\0';
 }
 
+
+//used to write S frames and U frames (I frames are different)
 int wFlag(int *fd, unsigned char A, unsigned char C){
     unsigned char buf[5];
     buf[0] = FLAG;
@@ -262,10 +264,6 @@ int llwrite(const unsigned char *inbuf, int bufSize)
     buf[frameLength-1]=FLAG;
     buf[frameLength-2]=dataBcc(buf,frameLength);
 
-    printf("antes de stuff: ");
-    for(int i = 1; i < bufSize; i++) printf("%c",inBuf[i]);
-    printf("\n");
-
     frameLength = stuff(buf,frameLength);
 
 
@@ -277,7 +275,6 @@ int llwrite(const unsigned char *inbuf, int bufSize)
 
 
         if(write(fd,buf,frameLength)!=frameLength) return -1;
-        //printf("\nsou mesmo epico e mandei estas coisas: %s\n",buf);
         state = 0;
         res = 0;
 
@@ -291,7 +288,6 @@ int llwrite(const unsigned char *inbuf, int bufSize)
                     return -1;
                 }
                 if(write(fd,buf,frameLength)!=frameLength) return -1;
-                //printf("\na outra funcao e um cringe e deu timeout portanto mandei outra vez\n");
             }
 
 
@@ -387,7 +383,6 @@ int llread(unsigned char *packet)
     while(!done){
         state = 0;
         res = 0;
-        //printf("vou entrar na state machine de ler xis de\n");
         while(state != 6){
             res = read(fd,buf,1);
             if(res==0){
@@ -397,16 +392,12 @@ int llread(unsigned char *packet)
                     perror("TIMEOUT LLREAD");
                     return -1;
                 }
-                //printf("read time out\n");
             }
-            //else //printf("byte ");
-            //ele está a receber os bytes mas n está a sair desta state machine acho eu
 
             if(state==0){
                 if(buf[0]==FLAG){
                     rec[state]=buf[0];
                     state = 1;
-                    //printf("flag\n");
                 }
             }
             else if(state==1){
@@ -420,7 +411,6 @@ int llread(unsigned char *packet)
                 if(buf[0] == C_0 || buf[0] == C_1 || buf[0] == SET || buf[0] == UA || buf[0] == DISC){
                     rec[state]=buf[0];
                     state = 3;
-                    //printf("c\n");
                 }
                 else if(buf[0] == FLAG){
                     state = 1;
@@ -448,7 +438,6 @@ int llread(unsigned char *packet)
                 rec[frameLength]=buf[0];
                 frameLength++;
                 if(buf[0]==FLAG){
-                    //printf("acabei de ler vou para state 6\n");
                     state = 6;
                 }
             }
@@ -465,7 +454,6 @@ int llread(unsigned char *packet)
                 state = 0;
             }
         }
-        //printf("\nsai da state machine de ler, a informacao apos o coiso e: %s\n",rec);
 
         if(rec[2] == SET || rec[2] == UA || rec[2] == DISC){
 
@@ -481,16 +469,13 @@ int llread(unsigned char *packet)
         else{
             frameLength = destuff(rec,frameLength);
 
-            printf("depois do destuff: ");
-            for(int i = 1; i < frameLength; i++) printf("%c",rec[i]);
-            printf("\n");
+            //printf("depois do destuff: ");
+            //for(int i = 1; i < frameLength; i++) printf("%c",rec[i]);
+            //printf("\n");
 
             unsigned char bcc2 = dataBcc(rec,frameLength);
 
-            //printf("\n dei destuff? sou mesmo fixe\n");
-
             if(bcc2 == rec[frameLength-2]){
-                //printf("uau o bcc2 estava bem que epico\n");
                 if(rec[2]==C_0 && nR == 0){
                     wFlag(&fd,A_T,RR1);
                     nR=1;
@@ -515,11 +500,9 @@ int llread(unsigned char *packet)
                     perror("BCC2 ERROR LLREAD");
                     return -1;
                 }
-                //printf("packet momento é %s\n",packet);
                 n = frameLength-6;
             }
             else{
-                //printf("o bcc2 estava mal que cringe\n");
                 if(rec[2]==C_0 && nR==0) wFlag(&fd,A_T,REJ0);
                 else if(rec[2]==C_1 && nR==1) wFlag(&fd,A_T,REJ1);
                 else if(rec[2]==C_0 && nR==1) wFlag(&fd,A_T,RR1);
