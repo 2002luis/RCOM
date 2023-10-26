@@ -132,7 +132,13 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         
         int timesWritten = 0;
 
-        int ctrlPacket = 0, ctrlSize = 0;;
+        int ctrlPacket = 0, ctrlSize = 0;
+        if(llread(buf) == 0) bytesRead = -1;
+        ctrlSize = readStartPacket(buf);
+        ctrlPacket = 1;
+        memcpy(closer,buf,ctrlSize);
+        closer[0] = 3;
+        
         while(ctrlPacket == 0){
             if(llread(buf) > 0){
                 ctrlSize = readStartPacket(buf);
