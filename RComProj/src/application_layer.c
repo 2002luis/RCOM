@@ -60,7 +60,12 @@ void printBuf(unsigned char* buf, int size){
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename)
 {
+    //Time of Execution test
+    clock_t start, end;
+    double cpu_time_used;
 
+    start = clock();
+    
     LinkLayer connectionParameters;
     connectionParameters.baudRate=baudRate;
     connectionParameters.nRetransmissions = nTries;
@@ -188,5 +193,10 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         llclose(0);
         close(file);   
     }
+
+    //CLOCK END
+    end = clock();
+    cpu_time_used = ((double) (end - start) / CLOCKS_PER_SEC);
     printf("total bytes %ld\n",totalBytes);
+    
 }
