@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <time.h>
 
 #include "application_layer.h"
 #include "link_layer.h"
@@ -61,10 +62,10 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename)
 {
     //Time of Execution test
-    clock_t start, end;
+    time_t start, end;
     double cpu_time_used;
 
-    start = clock();
+    time(&start);
     
     LinkLayer connectionParameters;
     connectionParameters.baudRate=baudRate;
@@ -195,9 +196,9 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     }
 
     //CLOCK END
-    end = clock();
-    cpu_time_used = ((double) (end - start) / CLOCKS_PER_SEC);
-    printf("%lf",cpu_time_used);
+    time(&end);
+    cpu_time_used = end - start;
+    printf("\nTime used: %f\n",cpu_time_used);
     printf("total bytes %ld\n",totalBytes);
     
 }
