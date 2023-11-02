@@ -197,6 +197,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     //CLOCK END
     end = clock();
     cpu_time_used = ((double) (end - start) / CLOCKS_PER_SEC);
+    printf("%lf",cpu_time_used);
     printf("total bytes %ld\n",totalBytes);
     
 }
